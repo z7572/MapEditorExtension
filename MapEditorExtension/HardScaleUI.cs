@@ -20,8 +20,8 @@ namespace MapEditorExtension
         private float lastSnap = 0.05f;
         private string snap = "0.05";
         protected bool lastMouseDown = false;
-        protected List<Vector3> originalScales = new();
-        protected string[] clipBoard = new string[3] { "1", "1", "1" };
+        protected List<Vector3> originalScales = [];
+        protected string[] clipBoard = ["1", "1", "1"];
 
         private void Start()
         {
@@ -146,7 +146,7 @@ namespace MapEditorExtension
         }
 
         bool UICought = false;
-        void MouseDown()//从鼠标按下开始记录
+        void MouseDown()
         {
             if (!_mShowScaleUI) return;
             if (!scaleMenuRect.Contains(new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y))) return;

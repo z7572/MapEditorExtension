@@ -240,10 +240,7 @@ namespace MapEditorExtension
                 }
             }
             levelCreator.GenerateSnapCornersFaces();
-            if (m_OnPlaceAction != null)
-            {
-                m_OnPlaceAction();
-            }
+            m_OnPlaceAction?.Invoke();
             var count = CountStackedObjects(m_LevelManager, selectedObj.name, position, rotation, scale);
             Helper.SendModOutput($"Stacked object: {selectedObj.name} of {count}", Helper.LogType.Success);
             isMouseMoved = false;
@@ -295,9 +292,9 @@ namespace MapEditorExtension
             cmd ??= commandInput;
             GUI.FocusControl(null);
 
-            var chatManagerPatches = AccessTools.TypeByName("QOL.ChatManagerPatches");
+            var chatManagerPatches = AccessTools.TypeByName("QOL.Patches.ChatManagerPatches");
             var findAndRunCommandMethod = AccessTools.Method(chatManagerPatches, "FindAndRunCommand");
-            findAndRunCommandMethod.Invoke(null, new object[] { cmd });
+            findAndRunCommandMethod.Invoke(null, [cmd]);
             Helper.currentOutputMsg = AccessTools.TypeByName("QOL.Helper").GetField("currentOutputMsg").GetValue(null) as string;
         }
 

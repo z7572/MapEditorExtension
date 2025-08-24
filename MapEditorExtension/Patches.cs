@@ -20,11 +20,10 @@ namespace MapEditorExtension
             LevelCreator.Instance.gameObject.AddComponent<HardScaleUI>();
             try
             {
-                var cheatTextManager = AccessTools.TypeByName("QOL.CheatTextManager");
-                var initModTextMethod = AccessTools.TypeByName("QOL.Plugin").GetMethod("InitModText");
-                var currentOutputMsg = AccessTools.TypeByName("QOL.Helper").GetField("currentOutputMsg");
-
-                if (currentOutputMsg == null) throw new NullReferenceException();
+                var cheatTextManager = AccessTools.TypeByName("QOL.CheatTextManager") ?? throw new NullReferenceException();
+                var initModTextMethod = AccessTools.TypeByName("QOL.Plugin").GetMethod("InitModText") ?? throw new NullReferenceException();
+                var currentOutputMsg = AccessTools.TypeByName("QOL.Helper").GetField("currentOutputMsg") ?? throw new NotSupportedException();
+                _ = AccessTools.TypeByName("QOL.Patches.ChatManagerPatches").GetMethod("FindAndRunCommand") ?? throw new NotSupportedException();
                 LevelCreator.Instance.gameObject.AddComponent(cheatTextManager);
                 initModTextMethod.Invoke(null, null);
                 initModTextMethod.Invoke(null, null);
@@ -33,7 +32,13 @@ namespace MapEditorExtension
             catch (NullReferenceException)
             {
                 Helper.isQOLModLoaded = false;
-                Helper.currentOutputMsg = "已禁用命令输入 -- 启用QOL-Mod(z7572 fork)以使用命令输入框!";
+                Helper.currentOutputMsg = "已禁用命令输入 -- 启用 QOL-Mod (z7572 fork) 以使用命令输入框!";
+                Debug.LogWarning(Helper.currentOutputMsg);
+            }
+            catch (NotSupportedException)
+            {
+                Helper.isQOLModLoaded = false;
+                Helper.currentOutputMsg = "已禁用命令输入 -- 更新 QOL-Mod 至 z7572 fork 以使用命令输入框!";
                 Debug.LogWarning(Helper.currentOutputMsg);
             }
         }
@@ -63,14 +68,11 @@ namespace MapEditorExtension
             Vector3 mirroredPosition = ___m_MapSpace.GetMirroredPosition(pos);
             if (!ExtensionUI.canStackPlace && Mathf.Abs(___m_MapSpace.GetDistanceToMiddle(mirroredPosition)) < 0.5f)
             {
-                if (___m_MirrorBrushObject != null)
-                {
-                    ___m_MirrorBrushObject.SetActive(false);
-                }
+                ___m_MirrorBrushObject?.SetActive(false);
             }
-            else if (___m_MirrorBrushObject != null)
+            else
             {
-                ___m_MirrorBrushObject.SetActive(true);
+                ___m_MirrorBrushObject?.SetActive(true);
             }
             __result = mirroredPosition;
             return false;
@@ -88,11 +90,7 @@ namespace MapEditorExtension
             }
             if (___m_BrushObject)
             {
-                var check = ___m_BrushObject.GetComponent<CheckPreRotation>();
-                if (check == null)
-                {
-                    check = ___m_BrushObject.AddComponent<CheckPreRotation>();
-                }
+                var check = ___m_BrushObject.GetComponent<CheckPreRotation>() ?? ___m_BrushObject.AddComponent<CheckPreRotation>();
                 var preRot = check.preRotationAngle;
                 if (___m_BrushObject.GetComponent<ProprFlipAroundYIndeadOfX>())
                 {
