@@ -5,7 +5,7 @@ using HarmonyLib;
 
 namespace MapEditorExtension
 {
-    [BepInPlugin("z7572.MapEditorExtension", "MapEditorExtension", "1.2")]
+    [BepInPlugin("z7572.MapEditorExtension", "MapEditorExtension", "1.3")]
     public class MapEditorExtension : BaseUnityPlugin
     {
         public void Awake()
