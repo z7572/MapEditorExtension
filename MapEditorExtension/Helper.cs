@@ -1,8 +1,11 @@
+using System;
+using System.Collections;
+using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace MapEditorExtension
 {
-
     public class Helper
     {
         public static bool IsRaycastSatisfied(GameObject hittedObj, string action = "select", bool allowGround = false, bool output = true)
@@ -30,6 +33,33 @@ namespace MapEditorExtension
             return true;
         }
 
+        public static void LoadAndExecute(string sceneName, Action<GameObject[]> loadedObjsCallback = null)
+        {
+            CoroutineRunner.Run(LoadCorotine());
+
+            IEnumerator LoadCorotine()
+            {
+                if (LoadedScene.IsValid() && LoadedScene.isLoaded)
+                {
+                    var unloadAsync = SceneManager.UnloadSceneAsync(LoadedScene);
+                    yield return new WaitUntil(() => unloadAsync.isDone);
+                }
+
+                var loadAsync = SceneManager.LoadSceneAsync(sceneName, LoadSceneMode.Additive);
+                yield return new WaitUntil(() => loadAsync.isDone);
+                var scene = SceneManager.GetSceneByName(sceneName);
+                LoadedScene = scene;
+                var rootObjs = scene.GetRootGameObjects();
+                foreach (var obj in rootObjs)
+                {
+                    obj.GetComponent<MonoBehaviour>().enabled = false;
+
+                    obj.gameObject.SetActive(false);
+                }
+                loadedObjsCallback?.Invoke(rootObjs);
+            }
+        }
+
         public static void SendModOutput(string msg, LogType logType = LogType.Info, bool toggleState = true)
         {
             var msgColor = logType switch
@@ -51,6 +81,8 @@ namespace MapEditorExtension
         }
         public static bool isQOLModLoaded;
         public static string currentOutputMsg = "<color=#999999><i>Not yet evaluated (<color=#569CD6>string</color>)</i></color>";
+        public static Scene LoadedScene;
+        public static GameObject ChatField;
     }
 
 }
