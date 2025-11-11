@@ -150,7 +150,7 @@ namespace MapEditorExtension
             GUILayout.EndHorizontal();
 
             //Can be removed since we are using chat field to input commands (or text)
-            /*
+            if (false)
             if (Helper.isQOLModLoaded)
             {
                 GUILayout.BeginHorizontal();
@@ -165,7 +165,7 @@ namespace MapEditorExtension
                 GUILayout.EndHorizontal();
                 GUILayout.Space(5);
             }
-            */
+            
 
             GUILayout.BeginHorizontal();
             GUILayout.Space(10);
@@ -289,7 +289,7 @@ namespace MapEditorExtension
             }
         }
 
-        /*
+        [Obsolete("Can be removed since we are using chat field to input commands (or text)")]
         public void ExecuteCmd(string cmd = null)
         {
             if (!Helper.isQOLModLoaded) return;
@@ -301,7 +301,7 @@ namespace MapEditorExtension
             findAndRunCommandMethod.Invoke(null, [cmd]);
             Helper.currentOutputMsg = AccessTools.TypeByName("QOL.Helper").GetField("currentOutputMsg").GetValue(null) as string;
         }
-        */
+        
 
         private void CheckMouseMove()
         {

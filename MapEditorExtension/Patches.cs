@@ -74,10 +74,10 @@ namespace MapEditorExtension
             if (Helper.ChatField == null)
             {
                 Helper.ChatField = Object.Instantiate(Object.FindObjectOfType<TMP_InputField>().gameObject);
+                Helper.ChatField.SetActive(false);
+                Object.DontDestroyOnLoad(Helper.ChatField);
+                Debug.Log("Cached ChatField GameObject");
             }
-            Helper.ChatField.SetActive(false);
-            Object.DontDestroyOnLoad(Helper.ChatField);
-            Debug.Log("Cached ChatField GameObject");
         }
 
         static GameObject _chatField;
