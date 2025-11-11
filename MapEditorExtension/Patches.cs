@@ -8,95 +8,12 @@ using System.Reflection;
 using System.Reflection.Emit;
 using TMPro;
 using UnityEngine;
-using Object = UnityEngine.Object;
 
 namespace MapEditorExtension
 {
     [HarmonyPatch]
     static class Patches
     {
-        [HarmonyPatch(typeof(ChatManager), "Start")]
-        [HarmonyTranspiler]
-        private static IEnumerable<CodeInstruction> ChatManagerStartTranspiler(IEnumerable<CodeInstruction> instructions)
-        {
-            var codes = instructions.ToList();
-            for (int i = 1; i < codes.Count; i++)
-            {
-                if (codes[i].opcode == OpCodes.Call && codes[i].operand.ToString().Contains("get_Instance"))
-                {
-                    codes.RemoveRange(i - 1, 4); // this.chatField = GameManager.Instance.chatInputField;
-                    codes.Insert(i - 1, new CodeInstruction(OpCodes.Ldarg_0));
-                    codes.Insert(i, new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(Patches), nameof(SetChatField))));
-                }
-                if (codes[i].opcode == OpCodes.Callvirt && codes[i].operand.ToString().Contains("set_richText"))
-                {
-                    codes.RemoveRange(i - 3, 4); // this.text.richText = false;
-                    codes.Insert(i - 3, new CodeInstruction(OpCodes.Ldarg_0));
-                    codes.Insert(i - 2, new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(Patches), nameof(FixRichText))));
-                }
-            }
-            return codes;
-        }
-
-        public static void SetChatField(ChatManager __instance)
-        {
-            try
-            {
-                if (GameManager.Instance == null)
-                {
-                    // Avoiding null reference exception causing HarmonyPostfix not working (In MapEditor)
-                    Traverse.Create(__instance).Field("chatField").SetValue(__instance.transform.root.GetComponentInChildren<TMP_InputField>());
-                }
-                else
-                {
-                    Traverse.Create(__instance).Field("chatField").SetValue(GameManager.Instance.chatInputField);
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning("Failed to set chat field: " + e);
-            }
-        }
-
-        public static void FixRichText(ChatManager __instance)
-        {
-            var text = Traverse.Create(__instance).Field("text").GetValue<TMP_Text>();
-            text.richText = ConfigHandler.GetEntry<bool>("EnableChatFieldInMapEditor") && Helper.isQOLModLoaded && WorkshopStateHandler.IsPlayTestingMode;
-        }
-
-        [HarmonyPatch(typeof(ChatManager), "Start")]
-        [HarmonyPostfix]
-        private static void ChatManagerStartPostfix(ChatManager __instance)
-        {
-            if (!ConfigHandler.GetEntry<bool>("enableChatFieldInMapEditor")) return;
-
-            // Cache chatfield object
-            if (Helper.ChatField == null)
-            {
-                Helper.ChatField = Object.Instantiate(Object.FindObjectOfType<TMP_InputField>().gameObject);
-                Helper.ChatField.SetActive(false);
-                Object.DontDestroyOnLoad(Helper.ChatField);
-                Debug.Log("Cached ChatField GameObject");
-            }
-        }
-
-        static GameObject _chatField;
-        [HarmonyPatch(typeof(WorkshopStateHandler), "StartPlayMode")]
-        [HarmonyPrefix]
-        private static void StartPlayModePrefix()
-        {
-            if (!ConfigHandler.GetEntry<bool>("enableChatFieldInMapEditor")) return;
-
-            var canvas = ResourcesManager.Instance.CharacterObject.transform.Find("GameCanvas");
-            if (_chatField == null)
-            {
-                _chatField = Object.Instantiate(Helper.ChatField);
-            }
-            _chatField.transform.SetParent(canvas, false);
-            _chatField.SetActive(true);
-            Debug.Log("Added ChatField GameObject to the canvas");
-        }
-
         [HarmonyPatch(typeof(LevelCreator), "Start")]
         [HarmonyAfter("monky.plugins.QOL")]
         [HarmonyPostfix]

@@ -37,9 +37,6 @@ namespace MapEditorExtension
 
             var mapSizeMaxEntry = config.Bind(MapSect, "MapSizeMax", 30f, "地图最大尺寸 (原版: 15)");
             EntriesDict[mapSizeMaxEntry.Definition.Key] = mapSizeMaxEntry;
-
-            var enableChatFieldInMapEditor = config.Bind(MapSect, "EnableChatFieldInMapEditor", true, "启用地图编辑器中的聊天输入框");
-            EntriesDict[enableChatFieldInMapEditor.Definition.Key] = enableChatFieldInMapEditor;
         }
 
         public static T GetEntry<T>(string entryKey, bool defaultValue = false)
