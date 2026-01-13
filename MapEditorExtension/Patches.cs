@@ -15,12 +15,12 @@ namespace MapEditorExtension
     static class Patches
     {
         [HarmonyPatch(typeof(LevelCreator), "Start")]
-        [HarmonyAfter("monky.plugins.QOL")]
         [HarmonyPostfix]
         private static void LevelCreatorStartPostfix()
         {
             LevelCreator.Instance.gameObject.AddComponent<ExtensionUI>();
             LevelCreator.Instance.gameObject.AddComponent<HardScaleUI>();
+#if false
             try
             {
                 var cheatTextManager = AccessTools.TypeByName("QOL.CheatTextManager") ?? throw new NullReferenceException();
@@ -39,6 +39,34 @@ namespace MapEditorExtension
             catch (NotSupportedException)
             {
                 Helper.isQOLModLoaded = false;
+            }
+#endif
+        }
+
+        [HarmonyPatch(typeof(LevelManager), "GetLevelObject")]
+        [HarmonyPostfix]
+        public static void GetLevelObjectPostfix(SaveableLevelObject obj, ref LevelObject __result)
+        {
+            if (__result == null || __result.VisibleObject == null) return;
+
+            float targetZ = obj.ScaleX;
+            float targetY = obj.ScaleY;
+            Vector3 finalScale = new Vector3(1f, targetY, targetZ);
+
+            __result.VisibleObject.transform.localScale = finalScale;
+
+            __result.Scale = new Vector2(targetZ, targetY);
+
+            // Explosive Barrel
+            var codeAnim = __result.VisibleObject.GetComponent<CodeAnimation>();
+
+            if (codeAnim != null && codeAnim.animationType == CodeAnimation.AnimationType.Scale)
+            {
+                var traverse = Traverse.Create(codeAnim);
+
+                traverse.Field("baseX").SetValue(finalScale.x);
+                traverse.Field("baseY").SetValue(finalScale.y);
+                traverse.Field("baseZ").SetValue(finalScale.z);
             }
         }
 

@@ -150,7 +150,7 @@ namespace MapEditorExtension
             GUILayout.EndHorizontal();
 
             //Can be removed since we are using chat field to input commands (or text)
-            if (false)
+#if false
             if (Helper.isQOLModLoaded)
             {
                 GUILayout.BeginHorizontal();
@@ -165,6 +165,7 @@ namespace MapEditorExtension
                 GUILayout.EndHorizontal();
                 GUILayout.Space(5);
             }
+#endif
             
 
             GUILayout.BeginHorizontal();
@@ -215,17 +216,38 @@ namespace MapEditorExtension
             else
             {
                 Debug.Log("m_BrushObject is null");
+                GameObject hittedObj = null;
+                bool targetFound = false;
+
                 if (levelCreator.CastRaycastFromMouse(out RaycastHit hit))
                 {
-                    GameObject hittedObj = hit.collider.transform.root.gameObject;
+                    hittedObj = hit.collider.transform.root.gameObject;
                     Debug.Log("hittedObj: " + hittedObj.name);
-                    if (!Helper.IsRaycastSatisfied(hittedObj, "stack")) return;
-                    if (m_LevelManager.ContainsObject(hittedObj))
+
+                    if (Helper.IsRaycastSatisfied(hittedObj, "stack", output: false) && m_LevelManager.ContainsObject(hittedObj))
                     {
                         position = hittedObj.transform.position;
                         rotation = hittedObj.transform.rotation;
                         scale = hittedObj.transform.localScale;
                         selectedObj = m_ResourcesManager.GetObjectByName(hittedObj.name.Replace("(Clone)", ""));
+                        targetFound = true;
+                    }
+                }
+
+                if (!targetFound)
+                {
+                    if (HardScaleUI.selectedObject != null)
+                    {
+                        var scaleObj = HardScaleUI.selectedObject;
+                        position = scaleObj.transform.position;
+                        rotation = scaleObj.transform.rotation;
+                        scale = scaleObj.transform.localScale;
+                        selectedObj = m_ResourcesManager.GetObjectByName(scaleObj.name.Replace("(Clone)", ""));
+                    }
+                    else
+                    {
+                        if (!Helper.IsRaycastSatisfied(hittedObj, "stack")) return;
+                        return;
                     }
                 }
             }
@@ -262,8 +284,11 @@ namespace MapEditorExtension
             }
             else // Object
             {
-                LevelObject levelObject = new LevelObject(gameObject, selectedObj.name, null, int.MinValue);
-                EnableAfterFrame component = gameObject.GetComponent<EnableAfterFrame>();
+                var levelObject = new LevelObject(gameObject, selectedObj.name, null, int.MinValue);
+                levelObject.Scale = new Vector2(scale.z, scale.y);
+                levelObject.Rotation = gameObject.transform.rotation.eulerAngles;
+
+                var component = gameObject.GetComponent<EnableAfterFrame>();
                 if (component)
                 {
                     component.obj.SetActive(true);

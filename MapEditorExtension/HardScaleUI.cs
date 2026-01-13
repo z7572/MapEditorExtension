@@ -10,10 +10,10 @@ namespace MapEditorExtension
     public class HardScaleUI : MonoBehaviour
     {
         public static HardScaleUI Instance { get; private set; }
+        public static GameObject selectedObject;
         private bool _mShowScaleUI;
         private Rect scaleMenuRect = new(Screen.width - 320 - 100, Screen.height - 170 - 200, 320, 170);
 
-        private GameObject selectedObject;
         private Vector3 currentScale;
         private Vector3 maxSingle;
         private Vector3 minSingle;
