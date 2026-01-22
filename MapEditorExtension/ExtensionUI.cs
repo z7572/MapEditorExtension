@@ -82,25 +82,52 @@ namespace MapEditorExtension
             if (canRotatePointedObject && Input.GetKeyDown(KeyCode.R) && !WorkshopStateHandler.IsPlayTestingMode)
             {
                 var levelCreator = LevelCreator.Instance;
+
                 var m_BrushObject = Traverse.Create(levelCreator).Field("m_BrushObject").GetValue<GameObject>();
                 var rot = rotationAngle;
+
                 if (m_BrushObject == null)
                 {
                     if (levelCreator.CastRaycastFromMouse(out RaycastHit hit))
                     {
                         GameObject hittedObj = hit.collider.transform.root.gameObject;
                         if (!Helper.IsRaycastSatisfied(hittedObj, "rotate")) return;
-                        var levelObjects = Traverse.Create(LevelManager.Instance).Field("m_PlacedLevelObjects").GetValue<List<LevelObject>>();
+
+                        if (LevelManager.Instance == null) return;
+
+                        var levelObjects = LevelManager.Instance.PlacedLevelObjects;
+                        if (levelObjects == null) return;
+
                         foreach (var levelObject in levelObjects)
                         {
+                            if (levelObject == null || levelObject.VisibleObject == null) continue;
+
                             if (levelObject.VisibleObject == hittedObj.gameObject)
                             {
                                 if (canReverseRotate && Input.GetKey(KeyCode.LeftShift))
                                 {
                                     rot = -rotationAngle;
                                 }
+
                                 levelObject.VisibleObject.transform.Rotate(new Vector3(rot, 0, 0));
-                                levelObject.Rotation = levelObject.VisibleObject.transform.rotation.eulerAngles;
+
+                                Vector3 currentEuler = levelObject.VisibleObject.transform.rotation.eulerAngles;
+                                Vector3 finalSaveRotation = currentEuler;
+
+                                if (Mathf.Abs(currentEuler.z) > 1f)
+                                {
+                                    float newX = 180f - currentEuler.x;
+                                    float newY = currentEuler.y + 180f;
+
+                                    newX = (newX % 360f + 360f) % 360f;
+                                    newY = (newY % 360f + 360f) % 360f;
+
+                                    finalSaveRotation = new Vector3(newX, newY, 0f);
+                                }
+
+                                levelObject.Rotation = finalSaveRotation;
+
+                                break;
                             }
                         }
                     }
@@ -285,8 +312,8 @@ namespace MapEditorExtension
             else // Object
             {
                 var levelObject = new LevelObject(gameObject, selectedObj.name, null, int.MinValue);
-                levelObject.Scale = new Vector2(scale.z, scale.y);
-                levelObject.Rotation = gameObject.transform.rotation.eulerAngles;
+                //levelObject.Scale = new Vector2(scale.z, scale.y);
+                //levelObject.Rotation = gameObject.transform.rotation.eulerAngles;
 
                 var component = gameObject.GetComponent<EnableAfterFrame>();
                 if (component)

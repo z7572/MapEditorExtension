@@ -12,7 +12,7 @@ using UnityEngine;
 namespace MapEditorExtension
 {
     [HarmonyPatch]
-    static class Patches
+    public static class Patches
     {
         [HarmonyPatch(typeof(LevelCreator), "Start")]
         [HarmonyPostfix]
@@ -20,27 +20,6 @@ namespace MapEditorExtension
         {
             LevelCreator.Instance.gameObject.AddComponent<ExtensionUI>();
             LevelCreator.Instance.gameObject.AddComponent<HardScaleUI>();
-#if false
-            try
-            {
-                var cheatTextManager = AccessTools.TypeByName("QOL.CheatTextManager") ?? throw new NullReferenceException();
-                var initModTextMethod = AccessTools.TypeByName("QOL.Plugin").GetMethod("InitModText") ?? throw new NullReferenceException();
-                var currentOutputMsg = AccessTools.TypeByName("QOL.Helper").GetField("currentOutputMsg") ?? throw new NotSupportedException();
-                _ = AccessTools.TypeByName("QOL.Patches.ChatManagerPatches").GetMethod("FindAndRunCommand") ?? throw new NotSupportedException();
-                LevelCreator.Instance.gameObject.AddComponent(cheatTextManager);
-                initModTextMethod.Invoke(null, null);
-                initModTextMethod.Invoke(null, null);
-                Helper.isQOLModLoaded = true;
-            }
-            catch (NullReferenceException)
-            {
-                Helper.isQOLModLoaded = false;
-            }
-            catch (NotSupportedException)
-            {
-                Helper.isQOLModLoaded = false;
-            }
-#endif
         }
 
         [HarmonyPatch(typeof(LevelManager), "GetLevelObject")]
@@ -74,6 +53,7 @@ namespace MapEditorExtension
         [HarmonyPrefix]
         private static bool RotateObjectPrefix(GameObject go, ref Vector3 rotate)
         {
+            if (go == null) return false;
             if (rotate.x > 0f && rotate.x <= 90f && rotate.y == 0f && rotate.z == 0f)
             {
                 var eulerAngles = new Vector3(ExtensionUI.rotationAngle, 0f, 0f);
@@ -115,15 +95,20 @@ namespace MapEditorExtension
             {
                 num = 180;
             }
+            __result = Quaternion.identity;
             if (___m_BrushObject)
             {
-                var check = ___m_BrushObject.GetComponent<CheckPreRotation>() ?? ___m_BrushObject.AddComponent<CheckPreRotation>();
+                if (___m_BrushObject.GetComponent<CheckPreRotation>() == null)
+                {
+                    ___m_BrushObject.AddComponent<CheckPreRotation>();
+                }
+                var check = ___m_BrushObject.GetComponent<CheckPreRotation>();
                 var preRot = check.preRotationAngle;
                 if (___m_BrushObject.GetComponent<ProprFlipAroundYIndeadOfX>())
                 {
                     Vector3 eulerAngles = ___m_BrushObject.transform.rotation.eulerAngles;
                     eulerAngles = new Vector3(eulerAngles.x, eulerAngles.y + num, eulerAngles.z);
-                    if (ExtensionUI.isHorizonalMirror && doMirrorRot)
+                    if (ExtensionUI.isHorizonalMirror)
                     {
                         eulerAngles = new Vector3(eulerAngles.x, (num - eulerAngles.y - preRot.y) - preRot.y, eulerAngles.z);
                     }
@@ -133,14 +118,14 @@ namespace MapEditorExtension
                 {
                     Vector3 eulerAngles2 = ___m_BrushObject.transform.rotation.eulerAngles;
                     eulerAngles2 = new Vector3(eulerAngles2.x + num, eulerAngles2.y, eulerAngles2.z);
-                    if (ExtensionUI.isHorizonalMirror && doMirrorRot)
+                    if (ExtensionUI.isHorizonalMirror)
                     {
                         eulerAngles2 = new Vector3((num - eulerAngles2.x - preRot.x) - preRot.x, eulerAngles2.y, eulerAngles2.z);
                     }
                     __result = Quaternion.Euler(eulerAngles2);
                 }
             }
-            else if (___m_BrushObject)
+            else if (___m_BrushObject) // Source code is this shit dead code
             {
                 __result = ___m_BrushObject.transform.rotation;
             }
@@ -187,12 +172,104 @@ namespace MapEditorExtension
                 {
                     preRotationAngle = new Vector3(90f, 0f, 0f);
                 }
-                else if (transform.GetChild(0).name == "Castle_Platform1 (1)") // HINGE STEP
+                //else if (transform.GetChild(0).name.Contains("Castle_Platform")) // HINGE STEP
+                //{
+                //    
+                //}
+            }
+        }
+
+
+        [HarmonyPatch]
+        public static class RotationFixPatches
+        {
+            /// <summary>
+            /// 核心算法：将带有 Z 轴旋转的欧拉角转换为 Z=0 的等效形式
+            /// 解决 Unity 欧拉角 Z 轴翻转导致存档丢失数据的问题
+            /// </summary>
+            private static Vector3 SanitizeEuler(Vector3 inputEuler)
+            {
+                // 容差，防止浮点误差
+                if (Mathf.Abs(inputEuler.z) < 1f) return inputEuler;
+
+                // 数学转换原理: 绕X转x，再绕Y转180，再绕Z转180 
+                // 等价于 ==> 绕X转(180-x)，Y转0，Z转0
+                // 这样就把 Z 轴消掉了
+                float newX = 180f - inputEuler.x;
+                float newY = inputEuler.y + 180f;
+
+                // 规范化角度到 0-360
+                newX = (newX % 360f + 360f) % 360f;
+                newY = (newY % 360f + 360f) % 360f;
+
+                return new Vector3(newX, newY, 0f);
+            }
+
+            // ========================================================================
+            // Patch 1: 修复新放置物体的旋转 (LevelObject 初始化时)
+            // 拦截目标: LevelObject.InitPosRotScale
+            // ========================================================================
+            [HarmonyPatch(typeof(LevelObject), "InitPosRotScale")]
+            [HarmonyPostfix]
+            public static void InitPosRotScale_Postfix(LevelObject __instance)
+            {
+                if (__instance == null || __instance.VisibleObject == null) return;
+
+                // 【关键点】不要信任 __instance.Rotation，因为它可能已经被原游戏的硬编码逻辑改错了(-180)
+                // 我们直接从 Unity 的 Transform 组件重新读取最原始的欧拉角
+                Vector3 rawRotation = __instance.VisibleObject.transform.rotation.eulerAngles;
+
+                // 使用我们的算法清洗 Z 轴
+                Vector3 cleanRotation = SanitizeEuler(rawRotation);
+
+                // 强制覆盖 LevelObject 中的数据
+                // 这样原游戏那句 if (z==180 && y==180) 造成的错误就会被我们修正
+                __instance.Rotation = cleanRotation;
+            }
+
+            // ========================================================================
+            // Patch 2: 修复移动/旋转工具操作后的物体 (LevelManager 更新时)
+            // 拦截目标: LevelManager.UpdatePlacedObject
+            // ========================================================================
+            [HarmonyPatch(typeof(LevelManager), "UpdatePlacedObject")]
+            [HarmonyPostfix]
+            public static void UpdatePlacedObject_Postfix(LevelManager __instance, GameObject objectToEdit, bool __result)
+            {
+                if (!__result || objectToEdit == null) return;
+
+                // 获取对应的 LevelObject
+                LevelObject levelObj = __instance.GetLevelObjectFromGameObject(objectToEdit);
+                if (levelObj != null)
                 {
-                    gameObject.AddComponent<ProprFlipAroundYIndeadOfX>();
+                    // 同样，直接从 Transform 读取，绕过 LevelManager 里的错误逻辑
+                    Vector3 rawRotation = objectToEdit.transform.rotation.eulerAngles;
+                    Vector3 cleanRotation = SanitizeEuler(rawRotation);
+
+                    // 强制修正
+                    levelObj.Rotation = cleanRotation;
+                }
+            }
+
+            // ========================================================================
+            // Patch 3: 存档时的最后一道防线
+            // 拦截目标: LevelObject.GetSaveableObject
+            // ========================================================================
+            [HarmonyPatch(typeof(LevelObject), "GetSaveableObject")]
+            [HarmonyPostfix]
+            public static void GetSaveableObject_Postfix(LevelObject __instance, ref SaveableLevelObject __result)
+            {
+                if (__result == null) return;
+
+                // 检查当前内存中的旋转数据是否依然带有 Z 轴 (作为双重保险)
+                if (Mathf.Abs(__instance.Rotation.z) > 1f)
+                {
+                    Vector3 clean = SanitizeEuler(__instance.Rotation);
+
+                    // 修正即将写入存档的数据
+                    __result.RotationX = clean.x;
+                    __result.RotationY = clean.y;
                 }
             }
         }
     }
-
 }
