@@ -19,9 +19,9 @@ namespace MapEditorExtension
         private Vector3 minSingle;
         private float lastSnap = 0.05f;
         private string snap = "0.05";
-        protected bool lastMouseDown = false;
-        protected List<Vector3> originalScales = [];
-        protected string[] clipBoard = ["1", "1", "1"];
+        private bool lastMouseDown = false;
+        private readonly List<Vector3> originalScales = [];
+        private readonly string[] clipBoard = ["1", "1", "1"];
 
         private void Start()
         {
@@ -38,7 +38,8 @@ namespace MapEditorExtension
         {
             if (ExtensionUI.canScale && !WorkshopStateHandler.IsPlayTestingMode && Input.GetMouseButtonDown(2))
             {
-                if (LevelCreator.Instance.CastRaycastFromMouse(out RaycastHit hit))
+                //if (LevelCreator.Instance.CastRaycastFromMouse(out RaycastHit hit))
+                if (Helper.CastRaycastFromMouse(LevelCreator.Instance, out var hit))
                 {
                     var hittedObject = hit.collider.transform.root.gameObject;
                     if (!Helper.IsRaycastSatisfied(hittedObject, "select", true) || hittedObject.name.ToLower().Contains("gun"))

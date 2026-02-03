@@ -238,7 +238,8 @@ namespace MapEditorExtension
                 if (!__result || objectToEdit == null) return;
 
                 // 获取对应的 LevelObject
-                LevelObject levelObj = __instance.GetLevelObjectFromGameObject(objectToEdit);
+                var getLevelObjectFromGameObjectMethod = AccessTools.Method(typeof(LevelManager), "GetLevelObjectFromGameObject");
+                LevelObject levelObj = (LevelObject)getLevelObjectFromGameObjectMethod.Invoke(__instance, [objectToEdit]);
                 if (levelObj != null)
                 {
                     // 同样，直接从 Transform 读取，绕过 LevelManager 里的错误逻辑
