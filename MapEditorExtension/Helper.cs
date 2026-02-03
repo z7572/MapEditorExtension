@@ -1,13 +1,35 @@
 using System;
 using System.Collections;
+using System.Reflection;
+using HarmonyLib;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using LevelEditor;
 
 namespace MapEditorExtension
 {
-    public class Helper
+    public static class Helper
     {
+        private static readonly MethodInfo _castRaycastMethod;
+
+        static Helper()
+        {
+            _castRaycastMethod = AccessTools.Method(typeof(LevelCreator), "CastRaycastFromMouse", [typeof(RaycastHit).MakeByRefType()]);
+        }
+
+        public static bool CastRaycastFromMouse(LevelCreator instance, out RaycastHit hit)
+        {
+            hit = default;
+            if (_castRaycastMethod == null || instance == null) return false;
+
+            object[] parameters = [null];
+            var result = (bool)_castRaycastMethod.Invoke(instance, parameters);
+            hit = (RaycastHit)parameters[0];
+
+            return result;
+        }
+
         public static bool IsRaycastSatisfied(GameObject hittedObj, string action = "select", bool allowGround = false, bool output = true)
         {
             if (hittedObj == null)

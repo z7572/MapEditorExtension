@@ -5,7 +5,7 @@
     <AssemblyName>MapEditorExtension</AssemblyName>
     <RootNamespace>MapEditorExtension</RootNamespace>
     <Authors>z7572</Authors>
-    <Version>1.4</Version>
+    <Version>1.4.1</Version>
     <Product>MapEditorExtension</Product>
     <Description>A BepInEx mod for Stick Fight: The Game</Description>
     <AssemblyVersion></AssemblyVersion>

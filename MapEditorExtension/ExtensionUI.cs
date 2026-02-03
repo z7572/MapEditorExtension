@@ -66,7 +66,7 @@ namespace MapEditorExtension
             }
             if (_mShowExtension && canStackPlace && isMouseMoved)
             {
-                if (LevelCreator.Instance.CastRaycastFromMouse(out RaycastHit hit))
+                if (Helper.CastRaycastFromMouse(LevelCreator.Instance, out var hit))
                 {
                     GameObject hittedObj = hit.collider.transform.root.gameObject;
                     if (!Helper.IsRaycastSatisfied(hittedObj, output: false)) return;
@@ -88,7 +88,7 @@ namespace MapEditorExtension
 
                 if (m_BrushObject == null)
                 {
-                    if (levelCreator.CastRaycastFromMouse(out RaycastHit hit))
+                    if (Helper.CastRaycastFromMouse(levelCreator, out var hit))
                     {
                         GameObject hittedObj = hit.collider.transform.root.gameObject;
                         if (!Helper.IsRaycastSatisfied(hittedObj, "rotate")) return;
@@ -246,7 +246,7 @@ namespace MapEditorExtension
                 GameObject hittedObj = null;
                 bool targetFound = false;
 
-                if (levelCreator.CastRaycastFromMouse(out RaycastHit hit))
+                if (Helper.CastRaycastFromMouse(levelCreator, out var hit))
                 {
                     hittedObj = hit.collider.transform.root.gameObject;
                     Debug.Log("hittedObj: " + hittedObj.name);
@@ -283,7 +283,9 @@ namespace MapEditorExtension
             {
                 if (m_ToolsHandler.IsMirroring)
                 {
-                    var mirroredPosition = levelCreator.GetMirroredPosition(position);
+                    var getMirroredPositionMethod = AccessTools.Method(typeof(LevelCreator), "GetMirroredPosition");
+                    //var mirroredPosition = levelCreator.GetMirroredPosition(position);
+                    var mirroredPosition = (Vector3)getMirroredPositionMethod.Invoke(levelCreator, [position]);
                     var mirroredRotation = m_MirrorBrushObject.transform.rotation;
                     if (m_MirrorBrushObject.activeInHierarchy)
                     {
