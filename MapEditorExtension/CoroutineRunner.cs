@@ -1,27 +1,26 @@
 ﻿using System.Collections;
 using UnityEngine;
 
-namespace MapEditorExtension
+namespace EditorExtension;
+
+public class CoroutineRunner : MonoBehaviour
 {
-    public class CoroutineRunner : MonoBehaviour
+    private static CoroutineRunner _instance;
+    public static CoroutineRunner Instance
     {
-        private static CoroutineRunner _instance;
-        public static CoroutineRunner Instance
+        get
         {
-            get
+            if (_instance == null)
             {
-                if (_instance == null)
-                {
-                    GameObject runnerObject = new("CoroutineRunner");
-                    _instance = runnerObject.AddComponent<CoroutineRunner>();
-                    DontDestroyOnLoad(runnerObject);
-                }
-                return _instance;
+                GameObject runnerObject = new("CoroutineRunner");
+                _instance = runnerObject.AddComponent<CoroutineRunner>();
+                DontDestroyOnLoad(runnerObject);
             }
+            return _instance;
         }
-        public static void Run(IEnumerator coroutine)
-        {
-            Instance.StartCoroutine(coroutine);
-        }
+    }
+    public static void Run(IEnumerator coroutine)
+    {
+        Instance.StartCoroutine(coroutine);
     }
 }

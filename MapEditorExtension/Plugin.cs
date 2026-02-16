@@ -3,31 +3,30 @@ using System;
 using System.Reflection;
 using HarmonyLib;
 
-namespace MapEditorExtension
+namespace EditorExtension;
+
+[BepInPlugin("z7572.EditorExtension", "EditorExtension", "1.5")]
+public class EditorExtension : BaseUnityPlugin
 {
-    [BepInPlugin("z7572.MapEditorExtension", "MapEditorExtension", "1.4.1")]
-    public class MapEditorExtension : BaseUnityPlugin
+    public void Awake()
     {
-        public void Awake()
+        Logger.LogInfo("EditorExtension is loaded!");
+        try
         {
-            Logger.LogInfo("MapEditorExtension is loaded!");
-            try
-            {
-                Logger.LogInfo("Loading configuration options from config file...");
-                ConfigHandler.InitConfig(Config);
-            }
-            catch (Exception e)
-            {
-                Logger.LogError("Exception on loading configuration: " + e.StackTrace + e.Message + e.Source + e.InnerException);
-            }            
-            try
-            {
-                Harmony.CreateAndPatchAll(Assembly.GetExecutingAssembly());
-            }
-            catch (Exception e)
-            {
-                Logger.LogError(e);
-            }
+            Logger.LogInfo("Loading configuration options from config file...");
+            ConfigHandler.InitConfig(Config);
+        }
+        catch (Exception e)
+        {
+            Logger.LogError("Exception on loading configuration: " + e.StackTrace + e.Message + e.Source + e.InnerException);
+        }            
+        try
+        {
+            Harmony.CreateAndPatchAll(Assembly.GetExecutingAssembly());
+        }
+        catch (Exception e)
+        {
+            Logger.LogError(e);
         }
     }
 }

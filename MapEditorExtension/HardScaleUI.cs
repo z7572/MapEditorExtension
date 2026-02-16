@@ -4,45 +4,60 @@ using UnityEngine;
 using LevelEditor;
 using System.Collections.Generic;
 
-namespace MapEditorExtension
+namespace EditorExtension;
+
+
+public class HardScaleUI : MonoBehaviour
 {
+    public static HardScaleUI Instance { get; private set; }
+    public static GameObject selectedObject;
+    private bool _mShowScaleUI;
+    private Rect scaleMenuRect = new(Screen.width - 320f - 100f, Screen.height - 170f - 200f, 320f, 170f);
 
-    public class HardScaleUI : MonoBehaviour
+    private Vector3 currentScale;
+    private Vector3 maxSingle;
+    private Vector3 minSingle;
+    private float lastSnap = 0.05f;
+    private string snap = "0.05";
+    private bool lastMouseDown = false;
+    private readonly List<Vector3> originalScales = [];
+    private readonly string[] clipBoard = ["1", "1", "1"];
+
+    private Vector3 _middleMouseDownPos;
+    private const float DragThreshold = 5f;
+
+    private void Start()
     {
-        public static HardScaleUI Instance { get; private set; }
-        public static GameObject selectedObject;
-        private bool _mShowScaleUI;
-        private Rect scaleMenuRect = new(Screen.width - 320 - 100, Screen.height - 170 - 200, 320, 170);
+        Instance = this;
+    }
 
-        private Vector3 currentScale;
-        private Vector3 maxSingle;
-        private Vector3 minSingle;
-        private float lastSnap = 0.05f;
-        private string snap = "0.05";
-        private bool lastMouseDown = false;
-        private readonly List<Vector3> originalScales = [];
-        private readonly string[] clipBoard = ["1", "1", "1"];
-
-        private void Start()
+    private void OnGUI()
+    {
+        if (_mShowScaleUI)
         {
-            Instance = this;
+            scaleMenuRect.width = 320f;
+            scaleMenuRect.height = 170f;
+            scaleMenuRect = GUILayout.Window(1002, scaleMenuRect, ScaleWindow, "HardScale");
+        }
+    }
+
+    private void Update()
+    {
+        if (Input.GetMouseButtonDown(2))
+        {
+            _middleMouseDownPos = Input.mousePosition;
         }
 
-        private void OnGUI()
+        if (ExtensionUI.canScale && !WorkshopStateHandler.IsPlayTestingMode && Input.GetMouseButtonUp(2))
         {
-            if (_mShowScaleUI)
-                scaleMenuRect = GUILayout.Window(1002, scaleMenuRect, ScaleWindow, "HardScale");
-        }
-
-        private void Update()
-        {
-            if (ExtensionUI.canScale && !WorkshopStateHandler.IsPlayTestingMode && Input.GetMouseButtonDown(2))
+            if (Vector3.Distance(Input.mousePosition, _middleMouseDownPos) < DragThreshold)
             {
                 //if (LevelCreator.Instance.CastRaycastFromMouse(out RaycastHit hit))
                 if (Helper.CastRaycastFromMouse(LevelCreator.Instance, out var hit))
                 {
                     var hittedObject = hit.collider.transform.root.gameObject;
-                    if (!Helper.IsRaycastSatisfied(hittedObject, "select", true) || hittedObject.name.ToLower().Contains("gun"))
+                    if (!Helper.IsRaycastSatisfied(hittedObject, "select", true) ||
+                        hittedObject.name.ToLower().Contains("gun"))
                     {
                         selectedObject = null;
                         _mShowScaleUI = false;
@@ -57,144 +72,144 @@ namespace MapEditorExtension
                     }
                 }
             }
-            if (lastMouseDown != Input.GetMouseButton(0))
-            {
-                lastMouseDown = Input.GetMouseButton(0);
-                if (lastMouseDown) MouseDown();
-                else MouseUp();
-            }
-            if (selectedObject == null) _mShowScaleUI = false;
+        }
+        if (lastMouseDown != Input.GetMouseButton(0))
+        {
+            lastMouseDown = Input.GetMouseButton(0);
+            if (lastMouseDown) MouseDown();
+            else MouseUp();
+        }
+        if (selectedObject == null) _mShowScaleUI = false;
+    }
+
+    private void ScaleWindow(int window)
+    {
+        GUILayout.BeginVertical();
+        GUILayout.Space(15);
+
+        GUILayout.BeginHorizontal();
+        GUILayout.Space(10);
+        GUILayout.Label("Selected: " + selectedObject.name);
+        GUILayout.FlexibleSpace();
+        GUILayout.Space(10);
+        GUILayout.EndHorizontal();
+
+        GUILayout.BeginHorizontal();
+        GUILayout.Space(10);
+        GUILayout.Label("Snap to");
+        snap = GUILayout.TextField(snap, GUILayout.Width(100));
+        try
+        {
+            float newSnap = Convert.ToSingle(snap);
+            if (newSnap < 0) newSnap = 0;
+            lastSnap = newSnap;
+        }
+        catch (Exception) { }
+        GUILayout.Label(lastSnap.ToString(), GUILayout.Width(100));
+        GUILayout.Space(10);
+        GUILayout.EndHorizontal();
+
+        if (!lastMouseDown)
+        {
+            minSingle = currentScale * 0.1f;
+            maxSingle = currentScale * 3;
+            for (int i = 0; i < 3; i++) if (maxSingle[i] < 0.1f) maxSingle[i] = 0.1f;
         }
 
-        private void ScaleWindow(int window)
+        currentScale[1] = SingleScaleSlider(currentScale[1], minSingle[1], maxSingle[1], "y ");
+        currentScale[2] = SingleScaleSlider(currentScale[2], minSingle[2], maxSingle[2], "z ");
+        if (UICought && lastSnap > 0.0001f && originalScales.Count == 1)
         {
-            GUILayout.BeginVertical();
-            GUILayout.Space(15);
+            for (int i = 1; i < 3; i++)
+            {
+                currentScale[i] = originalScales[0][i] + lastSnap * (Mathf.Round((currentScale[i] - originalScales[0][i]) / lastSnap));
+                if (currentScale[i] < 0) currentScale[i] = 0;
+            }
+        }
 
-            GUILayout.BeginHorizontal();
-            GUILayout.Space(10);
-            GUILayout.Label("Selected: " + selectedObject.name);
-            GUILayout.FlexibleSpace();
-            GUILayout.Space(10);
-            GUILayout.EndHorizontal();
+        GUILayout.BeginHorizontal();
+        GUILayout.Space(10);
+        GUILayout.Label("Paste bin: (Ctrl+C/Ctrl+V)");
+        GUILayout.FlexibleSpace();
+        GUILayout.Space(10);
+        GUILayout.EndHorizontal();
 
-            GUILayout.BeginHorizontal();
-            GUILayout.Space(10);
-            GUILayout.Label("Snap to");
-            snap = GUILayout.TextField(snap, GUILayout.Width(100));
+        GUILayout.BeginHorizontal();
+        GUILayout.Space(10);
+        if (GUILayout.Button("Copy", GUILayout.Width(50)) || Input.GetKeyDown(KeyCode.C) && Input.GetKey(KeyCode.LeftControl))
+        {
+            for (int i = 0; i < 3; i++) clipBoard[i] = currentScale[i].ToString();
+        }
+        if (GUILayout.Button("Paste", GUILayout.Width(50)) || Input.GetKeyDown(KeyCode.V) && Input.GetKey(KeyCode.LeftControl))
+        {
             try
             {
-                float newSnap = Convert.ToSingle(snap);
-                if (newSnap < 0) newSnap = 0;
-                lastSnap = newSnap;
-            }
-            catch (Exception) { }
-            GUILayout.Label(lastSnap.ToString(), GUILayout.Width(100));
-            GUILayout.Space(10);
-            GUILayout.EndHorizontal();
-
-            if (!lastMouseDown)
-            {
-                minSingle = currentScale * 0.1f;
-                maxSingle = currentScale * 3;
-                for (int i = 0; i < 3; i++) if (maxSingle[i] < 0.1f) maxSingle[i] = 0.1f;
-            }
-
-            currentScale[1] = SingleScaleSlider(currentScale[1], minSingle[1], maxSingle[1], "y ");
-            currentScale[2] = SingleScaleSlider(currentScale[2], minSingle[2], maxSingle[2], "z ");
-            if (UICought && lastSnap > 0.0001f && originalScales.Count == 1)
-            {
-                for (int i = 1; i < 3; i++)
-                {
-                    currentScale[i] = originalScales[0][i] + lastSnap * (Mathf.Round((currentScale[i] - originalScales[0][i]) / lastSnap));
-                    if (currentScale[i] < 0) currentScale[i] = 0;
-                }
-            }
-
-            GUILayout.BeginHorizontal();
-            GUILayout.Space(10);
-            GUILayout.Label("Paste bin: (Ctrl+C/Ctrl+V)");
-            GUILayout.FlexibleSpace();
-            GUILayout.Space(10);
-            GUILayout.EndHorizontal();
-
-            GUILayout.BeginHorizontal();
-            GUILayout.Space(10);
-            if (GUILayout.Button("Copy", GUILayout.Width(50)) || Input.GetKeyDown(KeyCode.C) && Input.GetKey(KeyCode.LeftControl))
-            {
-                for (int i = 0; i < 3; i++) clipBoard[i] = currentScale[i].ToString();
-            }
-            if (GUILayout.Button("Paste", GUILayout.Width(50)) || Input.GetKeyDown(KeyCode.V) && Input.GetKey(KeyCode.LeftControl))
-            {
-                try
-                {
-                    LogPreState();
-                    for (int i = 0; i < 3; i++) currentScale[i] = Convert.ToSingle(clipBoard[i]);
-                    DoSingleScale(currentScale);
-                    UpdatePostState();
-                }
-                catch (Exception) { };
-            }
-            GUILayout.FlexibleSpace();
-            for (int i = 1; i < 3; i++) clipBoard[i] = GUILayout.TextField(clipBoard[i], GUILayout.Width(60));
-            GUILayout.Space(10);
-            GUILayout.EndHorizontal();
-
-            if (UICought)
+                LogPreState();
+                for (int i = 0; i < 3; i++) currentScale[i] = Convert.ToSingle(clipBoard[i]);
                 DoSingleScale(currentScale);
+                UpdatePostState();
+            }
+            catch (Exception) { };
+        }
+        GUILayout.FlexibleSpace();
+        for (int i = 1; i < 3; i++) clipBoard[i] = GUILayout.TextField(clipBoard[i], GUILayout.Width(60));
+        GUILayout.Space(10);
+        GUILayout.EndHorizontal();
 
-            GUI.DragWindow();
-        }
+        if (UICought)
+            DoSingleScale(currentScale);
 
-        bool UICought = false;
-        void MouseDown()
-        {
-            if (!_mShowScaleUI) return;
-            if (!scaleMenuRect.Contains(new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y))) return;
+        GUI.DragWindow();
+    }
 
-            UICought = true;
-            LogPreState();
-        }
-        void LogPreState()
-        {
-            originalScales.Clear();
-            originalScales.Add(selectedObject.transform.localScale);
-        }
-        void MouseUp()
-        {
-            if (!UICought) return;
-            UpdatePostState();
-            UICought = false;
-        }
-        void UpdatePostState()
-        {
-            originalScales.Clear();
-        }
+    bool UICought = false;
+    void MouseDown()
+    {
+        if (!_mShowScaleUI) return;
+        if (!scaleMenuRect.Contains(new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y))) return;
 
-        protected float SingleScaleSlider(float value, float min, float max, string name)
-        {
-            GUILayout.BeginHorizontal();
-            GUILayout.Space(10);
-            var ret = GUILayout.HorizontalSlider(value, min, max, GUILayout.Width(220));
-            GUILayout.Label(name);
-            GUILayout.Label(ret.ToString(), GUILayout.Width(60));
-            GUILayout.Space(10);
-            GUILayout.EndHorizontal();
-            return ret;
-        }
+        UICought = true;
+        LogPreState();
+    }
+    void LogPreState()
+    {
+        originalScales.Clear();
+        originalScales.Add(selectedObject.transform.localScale);
+    }
+    void MouseUp()
+    {
+        if (!UICought) return;
+        UpdatePostState();
+        UICought = false;
+    }
+    void UpdatePostState()
+    {
+        originalScales.Clear();
+    }
 
-        private void DoSingleScale(Vector3 scale)
+    protected float SingleScaleSlider(float value, float min, float max, string name)
+    {
+        GUILayout.BeginHorizontal();
+        GUILayout.Space(10);
+        var ret = GUILayout.HorizontalSlider(value, min, max, GUILayout.Width(220));
+        GUILayout.Label(name);
+        GUILayout.Label(ret.ToString(), GUILayout.Width(60));
+        GUILayout.Space(10);
+        GUILayout.EndHorizontal();
+        return ret;
+    }
+
+    private void DoSingleScale(Vector3 scale)
+    {
+        if (selectedObject != null)
         {
-            if (selectedObject != null)
+            var levelObjects = Traverse.Create(LevelManager.Instance).Field("m_PlacedLevelObjects").GetValue<List<LevelObject>>();
+            foreach (var levelObject in levelObjects)
             {
-                var levelObjects = Traverse.Create(LevelManager.Instance).Field("m_PlacedLevelObjects").GetValue<List<LevelObject>>();
-                foreach (var levelObject in levelObjects)
+                if (levelObject.VisibleObject == selectedObject.gameObject)
                 {
-                    if (levelObject.VisibleObject == selectedObject.gameObject)
-                    {
-                        levelObject.VisibleObject.transform.localScale = scale;
-                        levelObject.Scale = new Vector2(scale.z, scale.y);
-                    }
+                    levelObject.VisibleObject.transform.localScale = scale;
+                    levelObject.Scale = new Vector2(scale.z, scale.y);
                 }
             }
         }
