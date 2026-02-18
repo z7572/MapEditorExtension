@@ -18,6 +18,54 @@ public static class Helper
         _castRaycastMethod = AccessTools.Method(typeof(LevelCreator), "CastRaycastFromMouse", [typeof(RaycastHit).MakeByRefType()]);
     }
 
+    public static Quaternion GetMirroredRotation(bool doMirrorRot, GameObject brushObject, GameObject dragObj = null)
+    {
+        var targetObj = brushObject ? brushObject : dragObj;
+
+        if (targetObj && targetObj.name.ToLower().Contains("gun"))
+        {
+            doMirrorRot = false;
+        }
+
+        var result = Quaternion.identity;
+        int angle = 0;
+        if (doMirrorRot) angle = 180;
+
+        if (targetObj)
+        {
+            if (targetObj.GetComponent<CheckPreRotation>() == null)
+            {
+                targetObj.AddComponent<CheckPreRotation>();
+            }
+            var check = targetObj.GetComponent<CheckPreRotation>();
+            var preRot = check.preRotationAngle;
+
+            Vector3 cleanEuler = SanitizeEuler(targetObj.transform.rotation.eulerAngles);
+
+            if (targetObj.GetComponent<ProprFlipAroundYIndeadOfX>())
+            {
+                Vector3 eulerAngles = cleanEuler;
+                eulerAngles = new Vector3(eulerAngles.x, eulerAngles.y + angle, eulerAngles.z);
+                if (ExtensionUI.isHorizonalMirror)
+                {
+                    eulerAngles = new Vector3(eulerAngles.x, (angle - eulerAngles.y - preRot.y) - preRot.y, eulerAngles.z);
+                }
+                result = Quaternion.Euler(eulerAngles);
+            }
+            else
+            {
+                Vector3 eulerAngles2 = cleanEuler;
+                eulerAngles2 = new Vector3(eulerAngles2.x + angle, eulerAngles2.y, eulerAngles2.z);
+                if (ExtensionUI.isHorizonalMirror)
+                {
+                    eulerAngles2 = new Vector3((angle - eulerAngles2.x - preRot.x) - preRot.x, eulerAngles2.y, eulerAngles2.z);
+                }
+                result = Quaternion.Euler(eulerAngles2);
+            }
+        }
+        return result;
+    }
+
     /// <summary>
     /// 清洗欧拉角，强制消除 Z 轴的 180 度翻转，将其标准化为 (X, Y, 0)<br/>
     /// 解决 Unity (x, 0, 0) 变成 (180-x, 180, 180) 导致的计算错误
@@ -38,7 +86,7 @@ public static class Helper
     public static bool CastRaycastFromMouse(LevelCreator instance, out RaycastHit hit)
     {
         hit = default;
-        if (_castRaycastMethod == null || instance == null) return false;
+        if (_castRaycastMethod == null || !instance) return false;
 
         object[] parameters = [null];
         var result = (bool)_castRaycastMethod.Invoke(instance, parameters);
@@ -50,7 +98,7 @@ public static class Helper
     // A stupid output method. nvm
     public static bool IsRaycastSatisfied(GameObject hittedObj, string action = "select", bool allowGround = false, bool output = true)
     {
-        if (hittedObj == null)
+        if (!hittedObj)
         {
             if (output) SendModOutput($"Cannot {action} nothing!", LogType.Warning);
             return false;

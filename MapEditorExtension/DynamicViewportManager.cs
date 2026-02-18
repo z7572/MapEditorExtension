@@ -39,11 +39,6 @@ public class DynamicViewportManager : MonoBehaviour
 
     private void Awake()
     {
-        Instance = this;
-    }
-
-    private void Start()
-    {
         _cam = GetComponent<Camera>();
         if (_cam != Camera.main)
         {
@@ -51,6 +46,11 @@ public class DynamicViewportManager : MonoBehaviour
             return;
         }
 
+        Instance = this;
+    }
+
+    private void Start()
+    {
         if (ExtensionUI.Instance != null && MapSizeHandler.Instance != null)
         {
             ExtensionUI.Instance.viewportSize = MapSizeHandler.Instance.mapSize;

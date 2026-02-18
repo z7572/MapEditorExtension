@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Collections;
 using System.Collections.Generic;
 using BepInEx.Configuration;
 using HarmonyLib;
@@ -30,6 +31,8 @@ public class ExtensionUI : MonoBehaviour
     public static bool isStackPlaceByFrame = false;
     public static bool canScale = true;
     public static bool canRotatePointedObject = true;
+
+    public static bool isMirrorDrag = true;
 
     public static bool IsFixCrateCollision
     {
@@ -67,13 +70,9 @@ public class ExtensionUI : MonoBehaviour
         {
             _mShowExtension = !_mShowExtension;
         }
-        if (canStackPlace && Input.GetKeyDown(KeyCode.P) || canStackPlace && isStackPlaceByFrame && Input.GetKey(KeyCode.P))
+        if ((canStackPlace && Input.GetKeyDown(KeyCode.P) || canStackPlace && isStackPlaceByFrame && Input.GetKey(KeyCode.P)) &&
+            !WorkshopStateHandler.IsPlayTestingMode)
         {
-            if (WorkshopStateHandler.IsPlayTestingMode)
-            {
-                Helper.SendModOutput("Cannot stack object in play testing mode!", Helper.LogType.Warning);
-                return;
-            }
             Stack();
         }
         if (_mShowExtension && canStackPlace && isMouseMoved)
@@ -91,56 +90,20 @@ public class ExtensionUI : MonoBehaviour
                 }
             }
         }
-        if (canRotatePointedObject && Input.GetKeyDown(KeyCode.R) && !WorkshopStateHandler.IsPlayTestingMode)
+        if (canRotatePointedObject && !WorkshopStateHandler.IsPlayTestingMode)
         {
-            var levelCreator = LevelCreator.Instance;
-
-            var m_BrushObject = Traverse.Create(levelCreator).Field("m_BrushObject").GetValue<GameObject>();
-            var rot = rotationAngle;
-
-            if (m_BrushObject == null)
+            if (Input.GetKeyDown(KeyCode.R) || Input.GetKeyDown(KeyCode.F))
             {
-                if (Helper.CastRaycastFromMouse(levelCreator, out var hit))
+                if (Helper.CastRaycastFromMouse(LevelCreator.Instance, out var hit))
                 {
                     GameObject hittedObj = hit.collider.transform.root.gameObject;
-                    if (!Helper.IsRaycastSatisfied(hittedObj, "rotate", true)) return;
 
-                    if (LevelManager.Instance == null) return;
+                    var isGround = hittedObj.name.StartsWith("GROUND");
+                    var isDragging = LevelEditorInputManager.IsHoldingPlace();
 
-                    var levelObjects = LevelManager.Instance.PlacedLevelObjects;
-                    if (levelObjects == null) return;
-
-                    foreach (var levelObject in levelObjects)
+                    if (isGround || !isDragging)
                     {
-                        if (levelObject == null || levelObject.VisibleObject == null) continue;
-
-                        if (levelObject.VisibleObject == hittedObj.gameObject)
-                        {
-                            if (canReverseRotate && Input.GetKey(KeyCode.LeftShift))
-                            {
-                                rot = -rotationAngle;
-                            }
-
-                            levelObject.VisibleObject.transform.Rotate(new Vector3(rot, 0, 0));
-
-                            Vector3 currentEuler = levelObject.VisibleObject.transform.rotation.eulerAngles;
-                            Vector3 finalSaveRotation = currentEuler;
-
-                            if (Mathf.Abs(currentEuler.z) > 1f)
-                            {
-                                float newX = 180f - currentEuler.x;
-                                float newY = currentEuler.y + 180f;
-
-                                newX = (newX % 360f + 360f) % 360f;
-                                newY = (newY % 360f + 360f) % 360f;
-
-                                finalSaveRotation = new Vector3(newX, newY, 0f);
-                            }
-
-                            levelObject.Rotation = finalSaveRotation;
-
-                            break;
-                        }
+                        RotatePointedObjectLogic(hittedObj);
                     }
                 }
             }
@@ -148,6 +111,80 @@ public class ExtensionUI : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.F1))
         {
             viewportFollowMap = true;
+        }
+    }
+
+    private static void RotatePointedObjectLogic(GameObject hittedObj)
+    {
+        if (hittedObj.name.ToLower().Contains("gun")) return;
+        if (!Helper.IsRaycastSatisfied(hittedObj, "rotate", true)) return;
+
+        Vector3 mainDelta = Vector3.zero;
+        if (Input.GetKeyDown(KeyCode.R))
+        {
+            float angle = rotationAngle;
+            if (canReverseRotate && Input.GetKey(KeyCode.LeftShift))
+            {
+                angle = -angle;
+            }
+            mainDelta = new Vector3(angle, 0f, 0f);
+        }
+        else if (Input.GetKeyDown(KeyCode.F))
+        {
+            if (hittedObj.GetComponent<ProprFlipAroundYIndeadOfX>())
+                mainDelta = new Vector3(0f, 180f, 0f);
+            else
+                mainDelta = new Vector3(180f, 0f, 0f);
+        }
+
+        hittedObj.transform.Rotate(mainDelta);
+        LevelManager.Instance.UpdatePlacedObject(hittedObj);
+
+
+        var lm = LevelManager.Instance;
+        var getLO = AccessTools.Method(typeof(LevelManager), "GetLevelObjectFromGameObject");
+        var getWO = AccessTools.Method(typeof(LevelManager), "GetLevelWeaponObjectFromGameObject");
+
+        LevelObject lo = (LevelObject)getLO.Invoke(lm, [hittedObj]);
+        WeaponObject wo = (WeaponObject)getWO.Invoke(lm, [hittedObj]);
+
+        GameObject mirrorObj = null;
+
+        var isMirroring = LevelToolsHandler.Instance.IsMirroring;
+        if (lo != null && lo.HasMirrorObject())
+        {
+            if (isMirroring)
+            {
+                mirrorObj = lo.MirrorObject.VisibleObject;
+            }
+            else
+            {
+                var traverseMirror = Traverse.Create(lo).Property("MirrorObject");
+                traverseMirror.Property("MirrorObject").SetValue(null);
+                traverseMirror.SetValue(null);
+                Helper.SendModOutput($"Unbound Mirror Object: {lo.Id}", Helper.LogType.Warning);
+            }
+        }
+        else if (wo != null && wo.HasMirrorObject()) // Dead code, nvm
+        {
+            if (isMirroring)
+            {
+                mirrorObj = wo.MirrorObject.VisibleObject;
+            }
+            else
+            {
+                var traverseMirror = Traverse.Create(wo).Property("MirrorObject");
+                traverseMirror.Property("MirrorObject").SetValue(null);
+                traverseMirror.SetValue(null);
+                Helper.SendModOutput($"Unbound Mirror Object: {wo.WeaponName}", Helper.LogType.Warning);
+            }
+        }
+
+        if (mirrorObj && LevelToolsHandler.Instance.IsMirroring)
+        {
+            bool doMirrorRot = LevelToolsHandler.Instance.IsMirroringRotation;
+            mirrorObj.transform.rotation = Helper.GetMirroredRotation(doMirrorRot, null, hittedObj);
+            LevelManager.Instance.UpdatePlacedObject(mirrorObj);
         }
     }
 
@@ -196,6 +233,8 @@ public class ExtensionUI : MonoBehaviour
         canScale = Toggle(canScale, "鼠标中键:设置物体比例");
         FlexibleSpace();
         canRotatePointedObject = Toggle(canRotatePointedObject, "可旋转鼠标指向物体");
+        FlexibleSpace();
+        isMirrorDrag = Toggle(isMirrorDrag, "镜像拖动");
         Space(10);
         EndHorizontal();
 
@@ -249,6 +288,40 @@ public class ExtensionUI : MonoBehaviour
         GUI.DragWindow();
     }
 
+    // Double drag coroutine for main object and its mirror, handles rotation/flip and mirror rotation
+    public IEnumerator DragMirrorObject(Transform mainTrans, Transform mirrorTrans)
+    {
+        var lc = LevelCreator.Instance;
+        var traverseLC = Traverse.Create(lc);
+
+        var brushObj = traverseLC.Field("m_BrushObject").GetValue<GameObject>();
+        var mirrorBrushObj = traverseLC.Field("m_MirrorBrushObject").GetValue<GameObject>();
+        if (brushObj) Destroy(brushObj);
+        if (mirrorBrushObj) Destroy(mirrorBrushObj);
+
+        var mapSpace = traverseLC.Field("m_MapSpace").GetValue<MapSpace>();
+
+        // 给 Main Object 挂上 CheckPreRotation，以便 Helper 计算 Mirror 旋转时能读取到正确的预旋转
+        // (Helper 是根据传入的 targetObj(Main) 来查找组件的)
+        if (mainTrans.GetComponent<CheckPreRotation>() == null)
+        {
+            mainTrans.gameObject.AddComponent<CheckPreRotation>();
+        }
+
+        while (LevelEditorInputManager.IsHoldingPlace())
+        {
+            // 位置跟随
+            var mirroredPos = mapSpace.GetMirroredPosition(mainTrans.position);
+            mirrorTrans.position = mirroredPos;
+
+            // 旋转跟随：交由 Patches.HandleFlipOrRotateDraggedObjectPostfix 处理
+            yield return null;
+        }
+
+        LevelManager.Instance.UpdatePlacedObject(mainTrans.gameObject);
+        LevelManager.Instance.UpdatePlacedObject(mirrorTrans.gameObject);
+    }
+
     public void Stack()
     {
         var levelCreator = LevelCreator.Instance;
@@ -272,7 +345,11 @@ public class ExtensionUI : MonoBehaviour
         var position = new Vector3();
         var rotation = new Quaternion();
         var scale = new Vector3();
-        if (m_BrushObject != null)
+
+        LevelObject existingLevelObj = null;
+        WeaponObject existingWeaponObj = null;
+
+        if (m_BrushObject)
         {
             if (m_BrushObject.transform.localScale == Vector3.zero)
             {
@@ -285,14 +362,14 @@ public class ExtensionUI : MonoBehaviour
         }
         else
         {
-            Debug.Log("m_BrushObject is null");
+            //Debug.Log("m_BrushObject is null");
             GameObject hittedObj = null;
             bool targetFound = false;
 
             if (Helper.CastRaycastFromMouse(levelCreator, out var hit))
             {
                 hittedObj = hit.collider.transform.root.gameObject;
-                Debug.Log("hittedObj: " + hittedObj.name);
+                //Debug.Log("hittedObj: " + hittedObj.name);
 
                 if (Helper.IsRaycastSatisfied(hittedObj, "stack", output: false) && LevelManager.Instance.ContainsObject(hittedObj))
                 {
@@ -300,13 +377,21 @@ public class ExtensionUI : MonoBehaviour
                     rotation = hittedObj.transform.rotation;
                     scale = hittedObj.transform.localScale;
                     selectedObj = m_ResourcesManager.GetObjectByName(hittedObj.name.Replace("(Clone)", ""));
+
+                    var lm = LevelManager.Instance;
+                    var getLO = AccessTools.Method(typeof(LevelManager), "GetLevelObjectFromGameObject");
+                    var getWO = AccessTools.Method(typeof(LevelManager), "GetLevelWeaponObjectFromGameObject");
+
+                    existingLevelObj = (LevelObject)getLO.Invoke(lm, [hittedObj]);
+                    existingWeaponObj = (WeaponObject)getWO.Invoke(lm, [hittedObj]);
+
                     targetFound = true;
                 }
             }
 
             if (!targetFound)
             {
-                if (HardScaleUI.selectedObject != null)
+                if (HardScaleUI.selectedObject)
                 {
                     var scaleObj = HardScaleUI.selectedObject;
                     position = scaleObj.transform.position;
@@ -321,21 +406,47 @@ public class ExtensionUI : MonoBehaviour
                 }
             }
         }
-        PlaceObject(selectedObj, position, rotation, scale);
-        if (m_MirrorBrushObject)
+
+        var mainPlacedObject = PlaceObject(selectedObj, position, rotation, scale, null);
+
+        var shouldStackMirror = false;
+        var mirrorPos = Vector3.zero;
+        var mirrorRot = Quaternion.identity;
+
+        // Stack when object have mirror and current mirror state is on.
+        if (m_MirrorBrushObject && m_ToolsHandler.IsMirroring)
         {
-            if (m_ToolsHandler.IsMirroring)
+            shouldStackMirror = true;
+            var getMirroredPositionMethod = AccessTools.Method(typeof(LevelCreator), "GetMirroredPosition");
+            //var mirroredPosition = levelCreator.GetMirroredPosition(position);
+            mirrorPos = (Vector3)getMirroredPositionMethod.Invoke(levelCreator, [position]);
+            mirrorRot = m_MirrorBrushObject.transform.rotation;
+        }
+
+        // Mirror Drag: Stack mirror when object have its own mirror and being dragged, no matter the current mirror state.
+        else if (isMirrorDrag)
+        {
+            if (existingLevelObj != null && existingLevelObj.HasMirrorObject())
             {
-                var getMirroredPositionMethod = AccessTools.Method(typeof(LevelCreator), "GetMirroredPosition");
-                //var mirroredPosition = levelCreator.GetMirroredPosition(position);
-                var mirroredPosition = (Vector3)getMirroredPositionMethod.Invoke(levelCreator, [position]);
-                var mirroredRotation = m_MirrorBrushObject.transform.rotation;
-                if (m_MirrorBrushObject.activeInHierarchy)
-                {
-                    PlaceObject(selectedObj, mirroredPosition, mirroredRotation, scale);
-                }
+                shouldStackMirror = true;
+                var mirVis = existingLevelObj.MirrorObject.VisibleObject.transform;
+                mirrorPos = mirVis.position;
+                mirrorRot = mirVis.rotation;
+            }
+            else if (existingWeaponObj != null && existingWeaponObj.HasMirrorObject())
+            {
+                shouldStackMirror = true;
+                var mirVis = existingWeaponObj.MirrorObject.VisibleObject.transform;
+                mirrorPos = mirVis.position;
+                mirrorRot = mirVis.rotation;
             }
         }
+
+        if (shouldStackMirror)
+        {
+            PlaceObject(selectedObj, mirrorPos, mirrorRot, scale, mainPlacedObject);
+        }
+        
         levelCreator.GenerateSnapCornersFaces();
         m_OnPlaceAction?.Invoke();
         var count = CountStackedObjects(selectedObj.name, position, rotation, scale);
@@ -343,21 +454,28 @@ public class ExtensionUI : MonoBehaviour
         isMouseMoved = false;
     }
 
-    private void PlaceObject(GameObject selectedObj, Vector3 position, Quaternion rotation, Vector3 scale)
+    private object PlaceObject(GameObject selectedObj, Vector3 position, Quaternion rotation, Vector3 scale, object mirrorRef)
     {
         var levelManager = LevelManager.Instance;
         var gameObject = Instantiate(selectedObj, position, rotation);
         gameObject.transform.localScale = scale;
+
         if (selectedObj.name.ToLower().Contains("gun")) // Weapon
         {
             var currentSelectedWeapon = selectedObj.name.ToLower().Replace("gun", "").Replace("(clone)", "");
             levelManager.StripObject(gameObject);
-            WeaponObject weaponObject2 = new WeaponObject(gameObject, int.Parse(currentSelectedWeapon), null);
+
+            WeaponObject mirrorWeapon = mirrorRef as WeaponObject;
+
+            WeaponObject weaponObject2 = new WeaponObject(gameObject, int.Parse(currentSelectedWeapon), mirrorWeapon);
             levelManager.AddNewPlacedLevelWeaponObject(weaponObject2);
+            return weaponObject2;
         }
         else // Object
         {
-            var levelObject = new LevelObject(gameObject, selectedObj.name, null, int.MinValue);
+            LevelObject mirrorLevelObj = mirrorRef as LevelObject;
+
+            var levelObject = new LevelObject(gameObject, selectedObj.name, mirrorLevelObj, int.MinValue);
             //levelObject.Scale = new Vector2(scale.z, scale.y);
             //levelObject.Rotation = gameObject.transform.rotation.eulerAngles;
 
@@ -367,6 +485,7 @@ public class ExtensionUI : MonoBehaviour
                 component.obj.SetActive(true);
             }
             levelManager.AddNewPlacedLevelObject(levelObject, true);
+            return levelObject;
         }
     }
 
