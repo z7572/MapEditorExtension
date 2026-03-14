@@ -5,7 +5,7 @@ using HarmonyLib;
 
 namespace EditorExtension;
 
-[BepInPlugin("z7572.EditorExtension", "EditorExtension", "1.6")]
+[BepInPlugin("z7572.EditorExtension", "EditorExtension", "1.7")]
 public class EditorExtension : BaseUnityPlugin
 {
     public void Awake()
