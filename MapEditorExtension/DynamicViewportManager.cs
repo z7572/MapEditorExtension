@@ -300,7 +300,7 @@ public class DynamicViewportManager : MonoBehaviour
         if (_hasInitGrid)
         {
             // 强制重置以触发位置修正
-            _lastGridSnapPos = new Vector3(float.MinValue, float.MinValue, float.MinValue);
+            _lastGridSnapPos = Vector3.zero;
             UpdateGridPosition();
         }
     }
